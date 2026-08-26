@@ -6,7 +6,7 @@ on:
       download_command:
         description: '输入 pip3 download 完整指令（支持自定义 URL 或参数）'
         required: true
-       default: 'pip3 download --index-url https://pytorch.org --extra-index-url https://pypi.org torch torchvision torchaudio ultralytics pandas pip label-studio Flask numpy opencv-python scipy loguru PIL secsgem vncdotool scikit-learn matplotlib'
+        default: 'pip3 download --index-url https://pytorch.org --extra-index-url https://pypi.org torch torchvision torchaudio ultralytics pandas pip label-studio Flask numpy opencv-python scipy loguru PIL secsgem vncdotool scikit-learn matplotlib'
       split_size:
         description: '7z 分卷大小 (例如: 2g, 1024m, 500m)'
         required: true
