@@ -33,16 +33,16 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y wget gnupg2 curl p7zip-full
           
-          # 動態獲取最新版本的 cuda-keyring 檔名並下載
-          KEYRING_URL=$(curl -s https://nvidia.com | grep -o 'cuda-keyring_[0-9.]\+-[0-9]\+_all.deb' | head -n 1)
-          if [ -z "$KEYRING_URL" ]; then
-          # 備用方案：如果動態解析失敗，直接嘗試最新的標準命名
-            KEYRING_URL="cuda-keyring_1.2-1_all.deb"
+          # 使用 NVIDIA 官方提供的統一最新版金鑰下載路徑
+          echo "Downloading CUDA Keyring..."
+          wget https://nvidia.com -O cuda-keyring_latest.deb || \
+          wget https://nvidia.com -O cuda-keyring_latest.deb
+          
+          # 如果上述具體版本失效，直接從 pin-wheels 或最新公共路徑抓取
+          if [ ! -f cuda-keyring_latest.deb ]; then
+            curl -s https://nvidia.com | grep -o 'cuda-keyring_.*\.deb' | head -n 1 | xargs -I {} wget https://nvidia.com{} -O cuda-keyring_latest.deb
           fi
-          
-          echo "Downloading CUDA Keyring: $KEYRING_URL"
-          wget "https://nvidia.com${KEYRING_URL}" -O cuda-keyring_latest.deb
-          
+                    
           # 安裝金鑰並部署 CUDA Toolkit
           sudo dpkg -i cuda-keyring_latest.deb
           sudo apt-get update
