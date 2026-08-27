@@ -42,7 +42,13 @@ jobs:
     - name: Execute Pip Download
       run: |
         cd python_packages
-        ${{ github.event.inputs.download_command }}
+        
+        echo "=== 步骤 1：隔离下载 PyTorch CUDA 12.6 相关包 ==="
+        pip3 download torch torchvision torchaudio --index-url https://pytorch.org
+        
+        echo "=== 步骤 2：下载其他所有机器学习依赖包 ==="
+        pip3 download ultralytics pandas pip label-studio Flask numpy opencv-python scipy loguru PIL secsgem vncdotool scikit-learn matplotlib --index-url https://pypi.org
+        
 
     - name: Generate requirements.txt from downloaded files
       run: |
