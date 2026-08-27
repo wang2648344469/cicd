@@ -3,10 +3,6 @@ name: Download Python Packages & Release
 on:
   workflow_dispatch:
     inputs:
-      download_command:
-        description: '输入 pip3 download 完整指令（支持自定义 URL 或参数）'
-        required: true
-        default: 'pip3 download torch torchvision --index-url https://download.pytorch.org/whl/cu126 --extra-index-url https://pypi.org torch torchvision torchaudio ultralytics pandas pip label-studio Flask numpy opencv-python scipy loguru PIL secsgem vncdotool scikit-learn matplotlib'
       split_size:
         description: '7z 分卷大小 (例如: 2g, 1024m, 500m)'
         required: true
@@ -15,6 +11,7 @@ on:
         description: 'Release 标签名称'
         required: true
         default: 'v1.0.0-packages'
+        
 permissions:
   contents: write
 
@@ -25,7 +22,7 @@ jobs:
     steps:
     - name: Checkout repository
       uses: actions/checkout@v4
-
+      
     - name: Set up Python 3.12
       uses: actions/setup-python@v5
       with:
@@ -42,63 +39,47 @@ jobs:
     - name: Execute Pip Download
       run: |
         cd python_packages
-        
-        echo "=== 步骤 1：隔离下载 PyTorch CUDA 12.6 相关包 ==="
-        pip3 download torch torchvision torchaudio \
-          --index-url https://pytorch.org \
-          --platform manylinux2014_x86_64 \
-          --python-version 312 \
-          --implementation cp \
-          --abi cp312 \
-          --only-binary=:all:
-        
-        echo "=== 步骤 2：下载其他所有机器学习依赖包 ==="
-        pip3 download ultralytics pandas pip label-studio Flask numpy opencv-python scipy loguru PIL secsgem vncdotool scikit-learn matplotlib \
-          --index-url https://pypi.org \
-          --platform manylinux2014_x86_64 \
-          --python-version 312 \
-          --implementation cp \
-          --abi cp312 \
-          --only-binary=:all:
+        echo "=== 开始下载除 PyTorch 外的其他所有依赖包 ==="
+        pip3 download ultralytics pandas pip label-studio Flask numpy opencv-python scipy loguru PIL secsgem vncdotool scikit-learn matplotlib --index-url https://pypi.org
 
     - name: Generate requirements.txt from downloaded files
       run: |
         python -c '
-        import os, re
+        import os
         
         pkg_dir = "python_packages"
         req_file = os.path.join(pkg_dir, "requirements.txt")
         requirements = []
-        # 遍历下载目录中的所有文件
-        for file in os.listdir(pkg_dir):
-            # 处理 wheel 包 (.whl)
-            if file.endswith(".whl"):
-                # Wheel 命名规范: {distribution}-{version}-{build}-{tag}.whl
-                # 替换连字符并提取包名与版本
-                parts = file.split("-")
-                if len(parts) >= 2:
-                    name = parts[0].replace("_", "-")
-                    version = parts[1]
-                    requirements.append(f"{name}=={version}")
-            # 处理源码包 (.tar.gz 或 .zip)
-            elif file.endswith(".tar.gz") or file.endswith(".zip"):
-                ext = ".tar.gz" if file.endswith(".tar.gz") else ".zip"
-                base_name = file[:-len(ext)]
-                # 通常格式为 name-version，从右侧切分第一个连字符
-                if "-" in base_name:
-                    name, version = base_name.rsplit("-", 1)
-                    name = name.replace("_", "-")
-                    requirements.append(f"{name}=={version}")
         
-        # 去重并排序
-        requirements = sorted(list(set(requirements)))
-        
-        # 写入文件
-        with open(req_file, "w", encoding="utf-8") as f:
-            for req in requirements:
-                f.write(req + "\n")
-                
-        print(f"成功生成清单，包含 {len(requirements)} 个依赖项。")
+        if os.path.exists(pkg_dir):
+            for file in os.listdir(pkg_dir):
+                # 1. 处理 Wheel 包 (.whl)
+                if file.endswith(".whl"):
+                    parts = file.split("-")
+                    if len(parts) >= 2:
+                        name = parts[0].replace("_", "-")
+                        version = parts[1]
+                        requirements.append(f"{name}=={version}")
+
+                # 2. 处理源码包 (.tar.gz 或 .zip)
+                elif file.endswith(".tar.gz") or file.endswith(".zip"):
+                    ext = ".tar.gz" if file.endswith(".tar.gz") else ".zip"
+                    base_name = file[:-len(ext)]
+                    if "-" in base_name:
+                        name, version = base_name.rsplit("-", 1)
+                        name = name.replace("_", "-")
+                        requirements.append(f"{name}=={version}")
+            
+            # 去重并排序
+            requirements = sorted(list(set(requirements)))
+            
+            # 写入清单
+            with open(req_file, "w", encoding="utf-8") as f:
+                for req in requirements:
+                    f.write(req + "\n")
+            print(f"成功生成清单，共计包含 {len(requirements)} 个依赖项。")
+        else:
+            print("错误：未找到下载目录！")
         '
 
     - name: Compress into 7z split volumes
@@ -109,10 +90,11 @@ jobs:
       uses: softprops/action-gh-release@v2
       with:
         tag_name: ${{ github.event.inputs.release_tag }}
-        name: "Python Packages for CUDA 12.8 (${{ github.event.inputs.release_tag }})"
+        name: "Python Packages (${{ github.event.inputs.release_tag }})"
         body: |
-          Automated download of Python ML/DL packages.
-          **Executed Command:** `${{ github.event.inputs.download_command }}`
+          Automated download of Python ML/DL packages (excluding PyTorch).
+          Target Environment: Ubuntu 24.04 & Python 3.12.
+
         files: |
           packages_archive.7z.*
       env:
