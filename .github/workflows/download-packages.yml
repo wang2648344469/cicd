@@ -1,1 +1,84 @@
+name: Download and Package Python Wheels
 
+on:
+  workflow_dispatch:
+    inputs:
+      custom_args:
+        description: 'Additional pip download arguments (e.g., --platform manylinux2014_x86_64 --only-binary=:all:)'
+        required: false
+        default: ''
+      release_tag:
+        description: 'Release Tag Name'
+        required: true
+        default: 'v1.0.0'
+
+permissions:
+  contents: write
+
+jobs:
+  download-and-pack:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-url: 'https://github.com' # Fallback setup for 24.04 runner compatibility if needed
+          python-version: '3.12'
+
+      - name: Set up CUDA 12.8
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y wget gnupg2 curl p7zip-full
+          wget https://nvidia.com
+          sudo dpkg -i cuda-keyring_1.1-1_all.deb
+          sudo apt-get update
+          sudo apt-get -y install cuda-toolkit-12-8
+          echo "CUDA_HOME=/usr/local/cuda-12.8" >> $GITHUB_ENV
+          echo "/usr/local/cuda-12.8/bin" >> $GITHUB_PATH
+          echo "LD_LIBRARY_PATH=/usr/local/cuda-12.8/lib64:$LD_LIBRARY_PATH" >> $GITHUB_ENV
+
+      - name: Verify Environment
+        run: |
+          python --version
+          pip --version
+          nvcc --version
+
+      - name: Download Python Packages
+        run: |
+          mkdir -p downloaded_packages
+          
+          # Base packages requested by user
+          PACKAGES="ultralytics pandas pip Flask numpy opencv-python scipy loguru Pillow secsgem vncdotool scikit-learn matplotlib"
+          
+          # Run pip download with custom extra inputs and specific CUDA torch index if needed
+          pip download \
+            $PACKAGES \
+            ${{ github.event.inputs.custom_args }} \
+            --extra-index-url https://pytorch.org \
+            -d downloaded_packages/
+
+      - name: Compress into 7z Volumes
+        run: |
+          # Compress into 7z split volumes (e.g., 40MB per volume to ensure smooth upload)
+          # Adjust "40m" to your desired size (e.g., 100m, 500m)
+          7z a -v40m packages_archive.7z ./downloaded_packages/*
+
+      - name: Create Release and Upload Assets
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.event.inputs.release_tag }}
+          name: "Python ML Packages (CUDA 12.8)"
+          body: "Automated download of machine learning dependencies for Python 3.12 and CUDA 12.8."
+          files: |
+            packages_archive.7z.*
+          draft: false
+          prerelease: false
+
+
+
+
+
+        
